@@ -12,6 +12,8 @@ class DBClient {
     });
     this.client.connect();
     this.db = this.client.db(dbName);
+    this.db.createCollection('users');
+    this.db.createCollection('files');
   }
 
   isAlive() {
@@ -26,6 +28,10 @@ class DBClient {
   async nbFiles() {
     const numberOfFiles = await this.db.collection('files').countDocuments();
     return numberOfFiles;
+  }
+
+  async getCollection(collection) {
+    return this.db.collection(collection);
   }
 }
 
