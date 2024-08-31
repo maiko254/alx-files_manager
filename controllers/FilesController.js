@@ -103,6 +103,50 @@ class FilesController {
 
     return res.status(200).json(files);
   }
+
+  static async putPublish(req, res) {
+    const token = req.header('X-Token');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = await redisClient.get(`auth_${token}`);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const userCollection = await dbClient.getCollection('users');
+    const user = await userCollection.findOne({ _id: ObjectId(userId) });
+
+    const fileId = req.params.id;
+    if (!fileId) return res.status(400).json({ error: 'Not found' });
+
+    const filesCollection = await dbClient.getCollection('files');
+    const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
+    if (!file || file.userId.toString() !== user._id.toString()) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    await filesCollection.updateOne({ _id: ObjectId(fileId) }, { $set: { isPublic: true } });
+    const updatedFile = await filesCollection.findOne({ _id: ObjectId(fileId) });
+    return res.status(200).json(updatedFile);
+  }
+
+  static async putUnpublish(req, res) {
+    const token = req.header('X-Token');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const userId = await redisClient.get(`auth_${token}`);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const userCollection = await dbClient.getCollection('users');
+    const user = await userCollection.findOne({ _id: ObjectId(userId) });
+
+    const fileId = req.params.id;
+    if (!fileId) return res.status(400).json({ error: 'Not found' });
+
+    const filesCollection = await dbClient.getCollection('files');
+    const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
+    if (!file || file.userId.toString() !== user._id.toString()) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    await filesCollection.updateOne({ _id: ObjectId(fileId) }, { $set: { isPublic: false } });
+    const updatedFile = await filesCollection.findOne({ _id: ObjectId(fileId) });
+    return res.status(200).json(updatedFile);
+  }
 }
 
 export default FilesController;
