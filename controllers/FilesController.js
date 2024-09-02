@@ -181,14 +181,14 @@ class FilesController {
       filePath = `${file.localPath}_${size}`;
     }
 
-    fs.access(filePath, fs.constants.F_OK, (err) => {
+    return fs.access(filePath, fs.constants.F_OK, (err) => {
       if (err) return res.status(404).json({ error: 'Not found' });
-    });
-    const mimeType = mime.lookup(file.name);
-    res.setHeader('Content-Type', mimeType);
-    fs.readFile(filePath, (err, data) => {
-      if (err) return res.status(500).json({ error: err.message });
-      return res.status(200).send(data);
+      const mimeType = mime.lookup(file.name);
+      res.setHeader('Content-Type', mimeType);
+      return fs.readFile(filePath, (err, data) => {
+        if (err) return res.status(500).json({ error: err.message });
+        return res.status(200).send(data);
+      });
     });
   }
 }
