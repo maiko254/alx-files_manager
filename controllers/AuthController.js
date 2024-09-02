@@ -22,7 +22,7 @@ class AuthController {
       const key = `auth_${token}`;
       await redisClient.set(key, user._id.toString(), 86400);
 
-      return res.status(200).send({ token: token });
+      return res.status(200).send({ token });
     } catch (err) {
       console.log(err);
       return res.status(500).send({ error: err.message });
