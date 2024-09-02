@@ -17,7 +17,9 @@ class FilesController {
     const userCollection = await dbClient.getCollection('users');
     const user = await userCollection.findOne({ _id: ObjectId(userId) });
 
-    const { name, type, parentId, isPublic, data } = req.body;
+    const {
+      name, type, parentId, isPublic, data,
+    } = req.body;
     if (!name) return res.status(400).json({ error: 'Missing name' });
     if (!type || !['folder', 'file', 'image'].includes(type)) return res.status(400).json({ error: 'Missing type' });
     if (!data && type !== 'folder') return res.status(400).json({ error: 'Missing data' });
@@ -106,7 +108,7 @@ class FilesController {
       return res.json({});
     }
     const pipeline = [
-      { $match: { parentId: parentId, userId: user._id } },
+      { $match: { parentId, userId: user._id } },
       { $skip: page * 20 },
       { $limit: 20 },
     ];
@@ -163,11 +165,12 @@ class FilesController {
   static async getFile(req, res) {
     const fileId = req.params.id;
     const size = req.query.size;
-
+    
     const filesCollection = await dbClient.getCollection('files');
     const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
 
     if (!file) return res.status(404).json({ error: 'Not found' });
+    if (file.isPublic === false) return res.status(404).json({ error: 'Not found' });
     if (file.type === 'folder') return res.status(400).json({ error: 'A folder doesn\'t have content' });
 
     let filePath = file.localPath;
