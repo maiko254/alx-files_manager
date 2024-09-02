@@ -2,10 +2,11 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { ObjectId } from 'mongodb';
 import mime from 'mime-types';
+import Queue from 'bull';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 
-const folder_path = process.env.FOLDER_PATH || '/tmp/files_manager';
+const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
 
 class FilesController {
   static async postUpload(req, res) {
@@ -34,24 +35,34 @@ class FilesController {
       type,
       parentId: parentId || 0,
       isPublic: isPublic || false,
-      //data: data || null,
     };
     if (type === 'folder') {
-      //newFile.data = null;
-      const result = await filesCollection.insertOne(newFile);
+      await filesCollection.insertOne(newFile);
       return res.status(201).json(newFile);
     }
 
-    if (!fs.existsSync(folder_path)) {
-      fs.mkdirSync(folder_path, { recursive: true });
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
     }
 
-    const path = `${folder_path}/${uuidv4()}`;
+    const fileQueue = new Queue('fileQueue', 'redis://127.0.0.1:6379');
+    const path = `${folderPath}/${uuidv4()}`;
     const buff = Buffer.from(data, 'base64');
+
     try {
       fs.writeFileSync(path, buff);
+
       newFile.localPath = path;
-      await filesCollection.insertOne(newFile);
+
+      const result = await filesCollection.insertOne(newFile);
+      newFile._id = result.insertedId;
+
+      if (newFile.type === 'image') {
+        fileQueue.add({
+          userId: newFile.userId,
+          fileId: newFile._id,
+        });
+      }
       return res.status(201).json(newFile);
     } catch (err) {
       console.log(err);
@@ -151,17 +162,28 @@ class FilesController {
 
   static async getFile(req, res) {
     const fileId = req.params.id;
+    const size = req.query.size;
+
     const filesCollection = await dbClient.getCollection('files');
     const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
-    if (!file) return res.status(404).json({ error: 'Not found' });
 
+    if (!file) return res.status(404).json({ error: 'Not found' });
     if (file.type === 'folder') return res.status(400).json({ error: 'A folder doesn\'t have content' });
-    fs.access(file.localPath, fs.constants.F_OK, (err) => {
+
+    let filePath = file.localPath;
+    if (size) {
+      if (![500, 250, 100].includes(parseInt(size))) {
+        return res.status(400).json({ error: 'Invalid size' });
+      }
+      filePath = `${file.localPath}_${size}`;
+    }
+
+    fs.access(filePath, fs.constants.F_OK, (err) => {
       if (err) return res.status(404).json({ error: 'Not found' });
     });
     const mimeType = mime.lookup(file.name);
     res.setHeader('Content-Type', mimeType);
-    fs.readFile(file.localPath, (err, data) => {
+    fs.readFile(filePath, (err, data) => {
       if (err) return res.status(500).json({ error: err.message });
       return res.status(200).send(data);
     });
