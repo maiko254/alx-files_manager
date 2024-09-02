@@ -163,9 +163,9 @@ class FilesController {
   }
 
   static async getFile(req, res) {
-    const fileId = req.params.id;
-    const size = req.query.size;
-    
+    const { id: fileId } = req.params;
+    const { size } = req.query;
+
     const filesCollection = await dbClient.getCollection('files');
     const file = await filesCollection.findOne({ _id: ObjectId(fileId) });
 
@@ -175,7 +175,7 @@ class FilesController {
 
     let filePath = file.localPath;
     if (size) {
-      if (![500, 250, 100].includes(parseInt(size))) {
+      if (![500, 250, 100].includes(parseInt(size, 10))) {
         return res.status(400).json({ error: 'Invalid size' });
       }
       filePath = `${file.localPath}_${size}`;
